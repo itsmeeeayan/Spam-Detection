@@ -25,18 +25,23 @@ except LookupError:
 
 # Preprocessing function with added check for string input
 def preprocess_text(text):
-    # If the text is NaN or not a string, convert or return empty string
+    # Ensure the input is a string
     if not isinstance(text, str):
-        text = str(text) if pd.notnull(text) else ""
-    # Remove punctuation
+        text = str(text)
+    # Remove punctuation from text
     text = text.translate(str.maketrans('', '', string.punctuation))
     # Tokenize text
     tokens = nltk.word_tokenize(text)
-    # Remove stopwords and apply stemming
+    # Remove stopwords and stem words
     stop_words = set(nltk.corpus.stopwords.words('english'))
     ps = nltk.PorterStemmer()
-    processed_tokens = [ps.stem(word.lower()) for word in tokens if word.lower() not in stop_words]
+    processed_tokens = [
+        ps.stem(word.lower()) 
+        for word in tokens 
+        if word.lower() not in stop_words
+    ]
     return ' '.join(processed_tokens)
+
 
 # ------------------------------
 # Set page configuration for Streamlit

@@ -79,9 +79,9 @@ if upload_file:
     y = df['label']
 
     # Check data size
-    if len(X) < 2:
-        st.error("Insufficient data after preprocessing. Upload a larger dataset.")
-        st.stop()
+    #if len(X) < 2:
+       # st.error("Insufficient data after preprocessing. Upload a larger dataset.")
+       # st.stop()
 
     # Safe split with stratify check
     try:

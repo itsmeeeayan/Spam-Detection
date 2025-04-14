@@ -64,6 +64,7 @@ def load_and_preprocess_data(file):
     return df
 
 def main():
+    set_bg_image()
     st.title("🌤️ Kolkata Weather Forecasting Web App")
     st.markdown("""
     This interactive app uses machine learning to predict temperatures in Kolkata.

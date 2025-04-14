@@ -36,6 +36,57 @@ def preprocess_text(text):
     processed_tokens = [ps.stem(word.lower()) for word in tokens if word.lower() not in stop_words]
     return ' '.join(processed_tokens)
 
+
+df = pd.read_csv(upload_file, sep='\t', header=None, names=['label', 'message'])
+
+# After loading and preprocessing the data
+# Add class validation before splitting
+if len(df['label'].unique()) < 2:
+    st.error("Error: Dataset must contain both spam and ham messages!")
+    st.stop()
+
+# After splitting data
+# Add split validation
+min_samples = min(len(y_train), len(y_test))
+if min_samples == 0:
+    st.error("Error: Insufficient samples for meaningful split!")
+    st.stop()
+
+# After loading and preprocessing:
+if upload_file is not None:
+    try:
+        # ... [existing file loading code] ...
+        
+    # Add class validation
+    if len(df['label'].unique()) < 2:
+        st.error("Error: Dataset must contain both spam and ham messages!")
+        st.stop()
+
+    # After splitting
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=test_size/100, random_state=42, stratify=y
+    )
+    
+    # Add split validation
+    min_samples = min(len(y_train), len(y_test))
+    if min_samples == 0:
+        st.error("Error: Insufficient samples for meaningful split!")
+        st.stop()
+
+# After loading data
+st.write("### Class Distribution")
+st.write(df['label'].value_counts())
+
+# Check minimum samples
+if len(df) < 10:
+    st.error("Error: Dataset needs at least 10 samples to proceed!")
+    st.stop()
+# To (handle both comma and tab separation):
+try:
+    df = pd.read_csv(upload_file, sep='\t', header=None, names=['label', 'message'])
+except pd.errors.ParserError:
+    df = pd.read_csv(upload_file, header=None, names=['label', 'message'])
+
 # Set page configuration (must come before any other Streamlit calls)
 st.set_page_config(
     page_title="Spam Prediction App",

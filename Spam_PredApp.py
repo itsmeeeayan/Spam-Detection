@@ -4,7 +4,6 @@ import pandas as pd
 import numpy as np
 import nltk
 import string
-import time
 
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -13,88 +12,24 @@ from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.pipeline import make_pipeline
 
-# Download NLTK resources if not already downloaded
-try:
-    nltk.data.find('tokenizers/punkt')
-    nltk.data.find('corpora/stopwords')
-except LookupError:
-    nltk.download('punkt')
-    nltk.download('stopwords')
+# Download NLTK resources
+nltk.download('punkt')
+nltk.download('stopwords')
 
 # Preprocessing function for text
 def preprocess_text(text):
-    # Ensure the input is a string
     if not isinstance(text, str):
-        text = str(text)
-    # Remove punctuation
+        return ""
     text = text.translate(str.maketrans('', '', string.punctuation))
-    # Tokenize text
     tokens = nltk.word_tokenize(text)
-    # Remove stopwords and stem
     stop_words = set(nltk.corpus.stopwords.words('english'))
     ps = nltk.PorterStemmer()
-    processed_tokens = [ps.stem(word.lower()) for word in tokens if word.lower() not in stop_words]
-    return ' '.join(processed_tokens)
+    return ' '.join([ps.stem(word.lower()) for word in tokens if word.lower() not in stop_words])
 
+# Streamlit page configuration
+st.set_page_config(page_title="Spam Prediction App", layout="wide")
 
-df = pd.read_csv(upload_file, sep='\t', header=None, names=['label', 'message'])
-
-# After loading and preprocessing the data
-# Add class validation before splitting
-if len(df['label'].unique()) < 2:
-    st.error("Error: Dataset must contain both spam and ham messages!")
-    st.stop()
-
-# After splitting data
-# Add split validation
-min_samples = min(len(y_train), len(y_test))
-if min_samples == 0:
-    st.error("Error: Insufficient samples for meaningful split!")
-    st.stop()
-
-# After loading and preprocessing:
-if upload_file is not None:
-    try:
-        # ... [existing file loading code] ...
-        
-    # Add class validation
-    if len(df['label'].unique()) < 2:
-        st.error("Error: Dataset must contain both spam and ham messages!")
-        st.stop()
-
-    # After splitting
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size/100, random_state=42, stratify=y
-    )
-    
-    # Add split validation
-    min_samples = min(len(y_train), len(y_test))
-    if min_samples == 0:
-        st.error("Error: Insufficient samples for meaningful split!")
-        st.stop()
-
-# After loading data
-st.write("### Class Distribution")
-st.write(df['label'].value_counts())
-
-# Check minimum samples
-if len(df) < 10:
-    st.error("Error: Dataset needs at least 10 samples to proceed!")
-    st.stop()
-# To (handle both comma and tab separation):
-try:
-    df = pd.read_csv(upload_file, sep='\t', header=None, names=['label', 'message'])
-except pd.errors.ParserError:
-    df = pd.read_csv(upload_file, header=None, names=['label', 'message'])
-
-# Set page configuration (must come before any other Streamlit calls)
-st.set_page_config(
-    page_title="Spam Prediction App",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# (Optional) Set a background image using CSS (update the URL to your own GitHub raw image URL)
+# Optional: Set background image
 def set_bg_image():
     st.markdown(
         """
@@ -102,119 +37,99 @@ def set_bg_image():
         .stApp {
             background: url("https://raw.githubusercontent.com/username/repository/main/path/to/your_background.jpg");
             background-size: cover;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
-            background-position: center;
         }
         </style>
-        """,
-        unsafe_allow_html=True
+        """, unsafe_allow_html=True
     )
 
-set_bg_image()
+# Uncomment to use background image
+# set_bg_image()
 
-# App Title and Description
 st.title("📧 Spam Prediction Web App")
 st.markdown("""
-This app uses machine learning (Naive Bayes and SVM) to predict if a message is spam or not.
-**Steps:**
-1. Upload your CSV file (in SMSSpamCollection format with columns 'label' and 'message').
-2. The app preprocesses the messages (removes punctuation, tokenizes, removes stopwords, and stems).
-3. It trains two models:
-   - Naive Bayes (MultinomialNB)
-   - Support Vector Machine (SVM with a linear kernel)
-4. Evaluation metrics and confusion matrices are displayed.
-5. Finally, you can enter a new message to check whether it's spam.
+This app predicts whether a message is **spam** or **not spam** using ML algorithms like Naive Bayes and SVM.
 """)
 
-# Sidebar for file uploader and settings
-st.sidebar.header("Model Settings & Data Upload")
-upload_file = st.sidebar.file_uploader("Upload CSV Data", type=["csv"])
+# Sidebar upload and test size
+st.sidebar.header("Upload Data & Settings")
+upload_file = st.sidebar.file_uploader("Upload a CSV file (columns: label, message)", type=["csv"])
 test_size = st.sidebar.slider("Test Set Size (%)", 10, 40, 20)
 
-if upload_file is not None:
+if upload_file:
     try:
-        # Read CSV file; for SMSSpamCollection, it's tab-separated with no header
         df = pd.read_csv(upload_file, sep='\t', header=None, names=['label', 'message'])
-    except Exception as e:
-        st.error(f"Error reading file: {e}")
+    except Exception:
+        df = pd.read_csv(upload_file)
+
+    # Sanity checks
+    if 'label' not in df.columns or 'message' not in df.columns:
+        st.error("CSV must contain 'label' and 'message' columns.")
         st.stop()
-    
-    # Drop rows with missing values in 'message' or 'label'
-    df = df.dropna(subset=['message', 'label'])
-    
-    # Map labels: ham -> 0, spam -> 1
+
+    df.dropna(subset=['label', 'message'], inplace=True)
+
     df['label'] = df['label'].map({'ham': 0, 'spam': 1})
-    
-    st.write("### Data Sample")
-    st.write(df.head())
-    
-    st.write("Preprocessing messages...")
+    df.dropna(inplace=True)  # Drop if any label conversion failed
+
+    st.write("### Sample Data", df.head())
+
     df['processed_text'] = df['message'].apply(preprocess_text)
-    
-    # Split dataset
+
     X = df['processed_text']
     y = df['label']
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size/100, random_state=42, stratify=y
-    )
-    
-    # ---------------------------
-    # Build Pipelines for Models
-    # ---------------------------
-    nb_pipeline = make_pipeline(
-        TfidfVectorizer(),
-        MultinomialNB()
-    )
+
+    # Check data size
+    if len(X) < 5:
+        st.error("Insufficient data after preprocessing. Upload a larger dataset.")
+        st.stop()
+
+    # Safe split with stratify check
+    try:
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size / 100, stratify=y, random_state=42
+        )
+    except ValueError as e:
+        st.error(f"Train-test split failed: {e}")
+        st.stop()
+
+    # Build and train Naive Bayes pipeline
+    nb_pipeline = make_pipeline(TfidfVectorizer(), MultinomialNB())
     nb_pipeline.fit(X_train, y_train)
     nb_pred = nb_pipeline.predict(X_test)
-    
-    svm_pipeline = make_pipeline(
-        TfidfVectorizer(),
-        SVC(kernel='linear', probability=True)
-    )
+
+    # Build and train SVM pipeline
+    svm_pipeline = make_pipeline(TfidfVectorizer(), SVC(kernel='linear', probability=True))
     svm_pipeline.fit(X_train, y_train)
     svm_pred = svm_pipeline.predict(X_test)
-    
-    # ---------------------------
-    # Display Results: Naive Bayes
-    # ---------------------------
-    st.markdown("### Naive Bayes Model Results")
-    st.write(f"**Accuracy:** {accuracy_score(y_test, nb_pred):.4f}")
-    st.write("**Classification Report:**")
+
+    # Display results
+    st.subheader("Naive Bayes Results")
+    st.write(f"Accuracy: {accuracy_score(y_test, nb_pred):.4f}")
     st.text(classification_report(y_test, nb_pred))
-    st.write("**Confusion Matrix:**")
     st.write(confusion_matrix(y_test, nb_pred))
-    
-    # ---------------------------
-    # Display Results: SVM
-    # ---------------------------
-    st.markdown("### SVM Model Results")
-    st.write(f"**Accuracy:** {accuracy_score(y_test, svm_pred):.4f}")
-    st.write("**Classification Report:**")
+
+    st.subheader("SVM Results")
+    st.write(f"Accuracy: {accuracy_score(y_test, svm_pred):.4f}")
     st.text(classification_report(y_test, svm_pred))
-    st.write("**Confusion Matrix:**")
     st.write(confusion_matrix(y_test, svm_pred))
-    
-    # ---------------------------
-    # Prediction Interface
-    # ---------------------------
-    st.markdown("### 🔮 Test a Message for Spam/Not Spam")
-    user_message = st.text_area("Enter your message:")
-    model_choice = st.selectbox("Select a Model for Prediction", ["Naive Bayes", "SVM"])
-    
-    if st.button("Predict Message"):
-        if user_message.strip() == "":
-            st.warning("Please enter a message to predict.")
-        else:
-            processed_msg = preprocess_text(user_message)
+
+    # Message prediction UI
+    st.subheader("🔮 Try Predicting Your Own Message")
+    user_msg = st.text_area("Enter a message to test:")
+    model_choice = st.selectbox("Choose a model", ["Naive Bayes", "SVM"])
+
+    if st.button("Predict"):
+        if user_msg.strip():
+            processed = preprocess_text(user_msg)
             if model_choice == "Naive Bayes":
-                pred = nb_pipeline.predict([processed_msg])[0]
-                prob = nb_pipeline.predict_proba([processed_msg])[0][pred]
+                pred = nb_pipeline.predict([processed])[0]
+                prob = nb_pipeline.predict_proba([processed])[0][pred]
             else:
-                pred = svm_pipeline.predict([processed_msg])[0]
-                prob = svm_pipeline.predict_proba([processed_msg])[0][pred]
+                pred = svm_pipeline.predict([processed])[0]
+                prob = svm_pipeline.predict_proba([processed])[0][pred]
             label = "Spam" if pred == 1 else "Not Spam"
-            st.success(f"Prediction: **{label}** (Confidence: {prob*100:.1f}%)")
+            st.success(f"Prediction: **{label}** with confidence {prob * 100:.2f}%")
+        else:
+            st.warning("Please enter a message.")
 else:
-    st.info("👈 Please upload a CSV file to get started with the spam prediction model.")
+    st.info("👈 Upload a dataset to begin training the models.")

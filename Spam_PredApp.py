@@ -42,8 +42,8 @@ def set_bg_image():
         """, unsafe_allow_html=True
     )
 
-# Uncomment to use background image
-# set_bg_image()
+
+set_bg_image()
 
 st.title("📧 Spam Prediction Web App")
 st.markdown("""
@@ -78,10 +78,7 @@ if upload_file:
     X = df['processed_text']
     y = df['label']
 
-    # Check data size
-    #if len(X) < 2:
-       # st.error("Insufficient data after preprocessing. Upload a larger dataset.")
-       # st.stop()
+    
 
     # Safe split with stratify check
     try:
@@ -91,6 +88,9 @@ if upload_file:
     except ValueError as e:
         st.error(f"Train-test split failed: {e}")
         st.stop()
+
+    df['label'] = df['label'].str.lower().map({'ham': 0, 'spam': 1})
+
 
     # Build and train Naive Bayes pipeline
     nb_pipeline = make_pipeline(TfidfVectorizer(), MultinomialNB())

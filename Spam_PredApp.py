@@ -21,74 +21,96 @@ except LookupError:
     nltk.download('punkt')
     nltk.download('stopwords')
 
-# Preprocessing function with type conversion
+# Preprocessing function for text
 def preprocess_text(text):
-    # Ensure the input is treated as a string
+    # Ensure the input is a string
     if not isinstance(text, str):
         text = str(text)
     # Remove punctuation
     text = text.translate(str.maketrans('', '', string.punctuation))
-    # Tokenize the text
+    # Tokenize text
     tokens = nltk.word_tokenize(text)
-    # Remove stopwords and stem the tokens
+    # Remove stopwords and stem
     stop_words = set(nltk.corpus.stopwords.words('english'))
     ps = nltk.PorterStemmer()
     processed_tokens = [ps.stem(word.lower()) for word in tokens if word.lower() not in stop_words]
     return ' '.join(processed_tokens)
 
-# -------------------------
-# Streamlit App for Spam Prediction
-# -------------------------
+# Set page configuration (must come before any other Streamlit calls)
 st.set_page_config(
     page_title="Spam Prediction App",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
+# (Optional) Set a background image using CSS (update the URL to your own GitHub raw image URL)
+def set_bg_image():
+    st.markdown(
+        """
+        <style>
+        .stApp {
+            background: url("https://raw.githubusercontent.com/username/repository/main/path/to/your_background.jpg");
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            background-position: center;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+set_bg_image()
+
+# App Title and Description
 st.title("📧 Spam Prediction Web App")
 st.markdown("""
-This app uses machine learning (Naive Bayes and SVM) to predict if a message is spam or not.  
-Steps:
+This app uses machine learning (Naive Bayes and SVM) to predict if a message is spam or not.
+**Steps:**
 1. Upload your CSV file (in SMSSpamCollection format with columns 'label' and 'message').
-2. The app preprocesses the messages and trains models.
-3. View the evaluation metrics for both models.
-4. Enter your own message to see if it's spam.
+2. The app preprocesses the messages (removes punctuation, tokenizes, removes stopwords, and stems).
+3. It trains two models:
+   - Naive Bayes (MultinomialNB)
+   - Support Vector Machine (SVM with a linear kernel)
+4. Evaluation metrics and confusion matrices are displayed.
+5. Finally, you can enter a new message to check whether it's spam.
 """)
 
-# Sidebar for file uploader
-st.sidebar.header("Upload Data")
+# Sidebar for file uploader and settings
+st.sidebar.header("Model Settings & Data Upload")
 upload_file = st.sidebar.file_uploader("Upload CSV Data", type=["csv"])
+test_size = st.sidebar.slider("Test Set Size (%)", 10, 40, 20)
 
 if upload_file is not None:
     try:
-        # Read CSV file, assuming a tab-separated format, no header
+        # Read CSV file; for SMSSpamCollection, it's tab-separated with no header
         df = pd.read_csv(upload_file, sep='\t', header=None, names=['label', 'message'])
     except Exception as e:
         st.error(f"Error reading file: {e}")
         st.stop()
     
-    # Map the labels to numeric: ham -> 0, spam -> 1
+    # Drop rows with missing values in 'message' or 'label'
+    df = df.dropna(subset=['message', 'label'])
+    
+    # Map labels: ham -> 0, spam -> 1
     df['label'] = df['label'].map({'ham': 0, 'spam': 1})
     
     st.write("### Data Sample")
     st.write(df.head())
     
     st.write("Preprocessing messages...")
-    # Apply the preprocess_text function (values cast to string internally)
     df['processed_text'] = df['message'].apply(preprocess_text)
     
-    # Split dataset into training and testing sets
+    # Split dataset
     X = df['processed_text']
     y = df['label']
-    test_size = st.sidebar.slider("Test Set Size (%)", 10, 40, 20)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size/100, random_state=42, stratify=y
     )
     
     # ---------------------------
-    # Train Naive Bayes Model Pipeline
+    # Build Pipelines for Models
     # ---------------------------
-    st.markdown("### Training Naive Bayes Model")
     nb_pipeline = make_pipeline(
         TfidfVectorizer(),
         MultinomialNB()
@@ -96,16 +118,6 @@ if upload_file is not None:
     nb_pipeline.fit(X_train, y_train)
     nb_pred = nb_pipeline.predict(X_test)
     
-    st.write("**Naive Bayes Results:**")
-    st.write(f"Accuracy: {accuracy_score(y_test, nb_pred):.4f}")
-    st.text("Classification Report:\n" + classification_report(y_test, nb_pred))
-    st.write("Confusion Matrix:")
-    st.write(confusion_matrix(y_test, nb_pred))
-    
-    # ---------------------------
-    # Train SVM Model Pipeline
-    # ---------------------------
-    st.markdown("### Training SVM Model")
     svm_pipeline = make_pipeline(
         TfidfVectorizer(),
         SVC(kernel='linear', probability=True)
@@ -113,10 +125,24 @@ if upload_file is not None:
     svm_pipeline.fit(X_train, y_train)
     svm_pred = svm_pipeline.predict(X_test)
     
-    st.write("**SVM Results:**")
-    st.write(f"Accuracy: {accuracy_score(y_test, svm_pred):.4f}")
-    st.text("Classification Report:\n" + classification_report(y_test, svm_pred))
-    st.write("Confusion Matrix:")
+    # ---------------------------
+    # Display Results: Naive Bayes
+    # ---------------------------
+    st.markdown("### Naive Bayes Model Results")
+    st.write(f"**Accuracy:** {accuracy_score(y_test, nb_pred):.4f}")
+    st.write("**Classification Report:**")
+    st.text(classification_report(y_test, nb_pred))
+    st.write("**Confusion Matrix:**")
+    st.write(confusion_matrix(y_test, nb_pred))
+    
+    # ---------------------------
+    # Display Results: SVM
+    # ---------------------------
+    st.markdown("### SVM Model Results")
+    st.write(f"**Accuracy:** {accuracy_score(y_test, svm_pred):.4f}")
+    st.write("**Classification Report:**")
+    st.text(classification_report(y_test, svm_pred))
+    st.write("**Confusion Matrix:**")
     st.write(confusion_matrix(y_test, svm_pred))
     
     # ---------------------------

@@ -70,10 +70,6 @@ if upload_file:
     # Filter out rows where processed_text is not a string or is empty (after stripping)
     df = df[df['processed_text'].apply(lambda x: isinstance(x, str) and x.strip() != "")]
     
-    # Check if there is sufficient data after preprocessing
-    if len(df) < 5:
-        st.error("Insufficient data after preprocessing. Upload a larger dataset.")
-        st.stop()
     
     # Prepare features and labels
     X = df['processed_text']

@@ -15,7 +15,7 @@ from sklearn.pipeline import make_pipeline
 nltk.download('punkt')
 nltk.download('stopwords')
 
-# Preprocessing function for text, with a fallback for empty results.
+# Preprocessing function for text, with a fallback if everything is removed.
 def preprocess_text(text):
     if not isinstance(text, str):
         return ""
@@ -26,7 +26,7 @@ def preprocess_text(text):
     ps = nltk.PorterStemmer()
     processed_tokens = [ps.stem(word.lower()) for word in tokens if word.lower() not in stop_words]
     processed_text = ' '.join(processed_tokens)
-    # Fallback to original text if processed text is empty
+    # Fallback to original text if result is empty
     return processed_text if processed_text.strip() != "" else text
 
 # Streamlit page configuration
@@ -36,29 +36,29 @@ st.markdown("""
 This app predicts whether a message is **spam** or **not spam** using ML algorithms (Naive Bayes & SVM).
 """)
 
-# Sidebar for upload and settings
+# Sidebar for data upload and settings
 st.sidebar.header("Data Upload & Settings")
 upload_file = st.sidebar.file_uploader("Upload CSV Data (columns: label, message)", type=["csv"])
 test_size = st.sidebar.slider("Test Set Size (%)", 10, 40, 20)
 
 if upload_file:
     try:
-        # Read CSV file; for SMSSpamCollection, assuming tab-separated without header
+        # Read CSV file; assuming tab-separated without header (SMSSpamCollection format)
         df = pd.read_csv(upload_file, sep='\t', header=None, names=['label', 'message'])
     except Exception:
-        # Alternatively, if CSV is comma-separated
+        # Fallback: try reading as comma-separated
         df = pd.read_csv(upload_file)
 
-    # Check if the CSV contains the expected columns
+    # Check that CSV contains the expected columns
     if 'label' not in df.columns or 'message' not in df.columns:
         st.error("CSV must have 'label' and 'message' columns.")
         st.stop()
 
     df.dropna(subset=['label', 'message'], inplace=True)
-
-    # Ensure label consistency: convert to lowercase for mapping
+    
+    # Convert labels to lowercase and map: ham -> 0, spam -> 1
     df['label'] = df['label'].astype(str).str.lower().map({'ham': 0, 'spam': 1})
-    # Drop any rows where label conversion failed
+    # Drop rows where label conversion failed
     df.dropna(subset=['label'], inplace=True)
     
     st.write("### Data Sample")
@@ -66,10 +66,11 @@ if upload_file:
 
     st.write("Preprocessing messages...")
     df['processed_text'] = df['message'].apply(preprocess_text)
-    # Remove rows with empty processed text
-    df = df[df['processed_text'].str.strip() != ""]
     
-    # Check if data is sufficient
+    # Filter out rows where processed_text is not a string or is empty (after stripping)
+    df = df[df['processed_text'].apply(lambda x: isinstance(x, str) and x.strip() != "")]
+    
+    # Check if there is sufficient data after preprocessing
     if len(df) < 5:
         st.error("Insufficient data after preprocessing. Upload a larger dataset.")
         st.stop()
@@ -78,7 +79,7 @@ if upload_file:
     X = df['processed_text']
     y = df['label']
     
-    # Train-test split (using stratify to maintain label distribution)
+    # Try splitting the dataset; if it fails, show an error
     try:
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=test_size / 100, stratify=y, random_state=42
@@ -86,20 +87,19 @@ if upload_file:
     except ValueError as e:
         st.error(f"Train-test split failed: {e}")
         st.stop()
-    
-    # ---------------------------
-    # Build and Train Pipelines
-    # ---------------------------
+
+    # Build and train Naive Bayes pipeline
     nb_pipeline = make_pipeline(TfidfVectorizer(), MultinomialNB())
     nb_pipeline.fit(X_train, y_train)
     nb_pred = nb_pipeline.predict(X_test)
-    
+
+    # Build and train SVM pipeline
     svm_pipeline = make_pipeline(TfidfVectorizer(), SVC(kernel='linear', probability=True))
     svm_pipeline.fit(X_train, y_train)
     svm_pred = svm_pipeline.predict(X_test)
-    
+
     # ---------------------------
-    # Display Results: Naive Bayes
+    # Display Naive Bayes Results
     # ---------------------------
     st.markdown("### Naive Bayes Model Results")
     st.write(f"**Accuracy:** {accuracy_score(y_test, nb_pred):.4f}")
@@ -107,9 +107,9 @@ if upload_file:
     st.text(classification_report(y_test, nb_pred))
     st.write("**Confusion Matrix:**")
     st.write(confusion_matrix(y_test, nb_pred))
-    
+
     # ---------------------------
-    # Display Results: SVM
+    # Display SVM Results
     # ---------------------------
     st.markdown("### SVM Model Results")
     st.write(f"**Accuracy:** {accuracy_score(y_test, svm_pred):.4f}")
@@ -117,7 +117,7 @@ if upload_file:
     st.text(classification_report(y_test, svm_pred))
     st.write("**Confusion Matrix:**")
     st.write(confusion_matrix(y_test, svm_pred))
-    
+
     # ---------------------------
     # Prediction Interface
     # ---------------------------

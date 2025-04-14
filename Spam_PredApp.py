@@ -15,7 +15,7 @@ from sklearn.pipeline import make_pipeline
 nltk.download('punkt')
 nltk.download('stopwords')
 
-# Preprocessing function for text, with a fallback if everything is removed.
+# Preprocessing function for text, with fallback if the result is empty.
 def preprocess_text(text):
     if not isinstance(text, str):
         return ""
@@ -26,7 +26,7 @@ def preprocess_text(text):
     ps = nltk.PorterStemmer()
     processed_tokens = [ps.stem(word.lower()) for word in tokens if word.lower() not in stop_words]
     processed_text = ' '.join(processed_tokens)
-    # Fallback to original text if result is empty
+    # Fallback to original text if preprocessing yields an empty string
     return processed_text if processed_text.strip() != "" else text
 
 # Streamlit page configuration
@@ -43,10 +43,10 @@ test_size = st.sidebar.slider("Test Set Size (%)", 10, 40, 20)
 
 if upload_file:
     try:
-        # Read CSV file; assuming tab-separated without header (SMSSpamCollection format)
+        # Try reading as tab-separated first (common for SMSSpamCollection)
         df = pd.read_csv(upload_file, sep='\t', header=None, names=['label', 'message'])
     except Exception:
-        # Fallback: try reading as comma-separated
+        # Fallback: try reading as comma-separated if error occurs
         df = pd.read_csv(upload_file)
 
     # Check that CSV contains the expected columns
@@ -54,28 +54,39 @@ if upload_file:
         st.error("CSV must have 'label' and 'message' columns.")
         st.stop()
 
+    # Drop rows with missing values in 'label' or 'message'
     df.dropna(subset=['label', 'message'], inplace=True)
     
-    # Convert labels to lowercase and map: ham -> 0, spam -> 1
+    # Convert label values to lowercase and map: ham -> 0, spam -> 1
     df['label'] = df['label'].astype(str).str.lower().map({'ham': 0, 'spam': 1})
-    # Drop rows where label conversion failed
+    # Drop rows where the label mapping failed
     df.dropna(subset=['label'], inplace=True)
     
     st.write("### Data Sample")
     st.write(df.head())
 
     st.write("Preprocessing messages...")
+    # Apply preprocessing to generate a new column 'processed_text'
     df['processed_text'] = df['message'].apply(preprocess_text)
     
-    # Filter out rows where processed_text is not a string or is empty (after stripping)
+    # Filter out rows with non-string or empty processed_text values using apply() safely.
     df = df[df['processed_text'].apply(lambda x: isinstance(x, str) and x.strip() != "")]
     
+    # Check if the 'processed_text' column exists and if the dataframe is not empty.
+    if 'processed_text' not in df.columns or df.empty:
+        st.error("After preprocessing, there is no valid text data. Please check your input dataset.")
+        st.stop()
+    
+    # Check if enough rows remain for training.
+    if len(df) < 2:
+        st.error("Insufficient data after preprocessing. Upload a larger dataset.")
+        st.stop()
     
     # Prepare features and labels
     X = df['processed_text']
     y = df['label']
     
-    # Try splitting the dataset; if it fails, show an error
+    # Split the dataset; using stratify to maintain label distribution.
     try:
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=test_size / 100, stratify=y, random_state=42
@@ -83,13 +94,16 @@ if upload_file:
     except ValueError as e:
         st.error(f"Train-test split failed: {e}")
         st.stop()
-
-    # Build and train Naive Bayes pipeline
+    
+    # ---------------------------
+    # Build and Train Pipelines
+    # ---------------------------
+    # Naive Bayes pipeline
     nb_pipeline = make_pipeline(TfidfVectorizer(), MultinomialNB())
     nb_pipeline.fit(X_train, y_train)
     nb_pred = nb_pipeline.predict(X_test)
 
-    # Build and train SVM pipeline
+    # SVM pipeline
     svm_pipeline = make_pipeline(TfidfVectorizer(), SVC(kernel='linear', probability=True))
     svm_pipeline.fit(X_train, y_train)
     svm_pred = svm_pipeline.predict(X_test)

@@ -37,7 +37,7 @@ def main():
     )
 
     # Load data & train
-    df = load_data("SMSSpamCollection.csv")
+    df = load_data("Spam.csv")
     model = train_model(df)
 
     # User input

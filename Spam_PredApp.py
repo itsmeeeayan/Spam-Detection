@@ -9,7 +9,7 @@ import pickle
 
 # Function to load and preprocess data
 def load_data(path):
-    df = pd.read_csv(SMSSpamCollection.csv)
+    df = pd.read_csv(Spam.csv)
     df = df[['label', 'message']].dropna()
     df['label'] = df['label'].map({'ham': 0, 'spam': 1})
     return df['message'], df['label']

@@ -11,21 +11,25 @@ def add_background():
     st.markdown(
         """
         <style>
-        .stApp {
-            background-image: url("https://images.unsplash.com/photo-1581090700227-c391f23a3bab");
+        /* Full‑page background */
+        [data-testid="stAppViewContainer"] {
+            background-image: url("https://images.unsplash.com/photo-1581090700227-c391f23a3bab") !important;
             background-size: cover;
             background-position: center;
         }
-        .css-18e3th9 {  /* Main content area transparency */
-            background-color: rgba(44, 62, 80, 0.6);
+        /* Make main content panel slightly translucent so background shows through */
+        .css-18e3th9 {
+            background-color: rgba(44, 62, 80, 0.6) !important;
         }
-        .css-1d391kg {  /* Sidebar transparency */
-            background-color: rgba(52, 73, 94, 0.8);
+        /* Sidebar panel too */
+        .css-1d391kg {
+            background-color: rgba(52, 73, 94, 0.8) !important;
         }
         </style>
         """,
         unsafe_allow_html=True
     )
+
 
 # 2) Load and preprocess data
 @st.cache_data

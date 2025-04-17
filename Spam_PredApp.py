@@ -1,59 +1,57 @@
-# app.py
-import streamlit as st
 import pandas as pd
+import numpy as np
+import streamlit as st
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
-from sklearn.pipeline import make_pipeline
+from sklearn.metrics import accuracy_score
+import pickle
 
-@st.cache_data(show_spinner=False)
-def load_data(path: str):
-    # Load dataset; adjust delimiter if needed
+# Function to load and preprocess data
+def load_data(path):
     df = pd.read_csv(path)
-    # Ensure only the two expected columns exist
     df = df[['label', 'message']].dropna()
-    # Map labels to binary
-    df['label_num'] = df['label'].map({'ham': 0, 'spam': 1})
-    return df
+    df['label'] = df['label'].map({'ham': 0, 'spam': 1})
+    return df['message'], df['label']
 
-@st.cache_resource(show_spinner=False)
-def train_model(df: pd.DataFrame):
+# Train model and vectorizer
+def train_model(messages, labels):
     X_train, X_test, y_train, y_test = train_test_split(
-        df['message'], df['label_num'], test_size=0.2, random_state=42
+        messages, labels, test_size=0.2, random_state=42, stratify=labels
     )
-    # Build a pipeline: TF–IDF vectorizer + MultinomialNB
-    model = make_pipeline(
-        TfidfVectorizer(stop_words='english'),
-        MultinomialNB()
-    )
-    model.fit(X_train, y_train)
-    return model
+    vectorizer = TfidfVectorizer(stop_words='english')
+    X_train_vect = vectorizer.fit_transform(X_train)
+    model = MultinomialNB()
+    model.fit(X_train_vect, y_train)
+    # Evaluate
+    X_test_vect = vectorizer.transform(X_test)
+    preds = model.predict(X_test_vect)
+    acc = accuracy_score(y_test, preds)
+    st.write(f"Model accuracy: {acc:.2%}")
+    return model, vectorizer
 
-def main():
-    st.set_page_config(page_title="SMS Spam Classifier", layout="centered")
-    st.title("📨 SMS Spam Classifier")
-    st.write(
-        "Enter a message below and click **Predict** to see whether it's **Spam** or **Ham**."
-    )
+# Load and train on startup
+@st.cache_resource
+def load_and_train():
+    messages, labels = load_data('spam_dataset.csv')
+    return train_model(messages, labels)
 
-    # Load data & train
-    df = load_data("SMSSpamCollection.csv")
-    model = train_model(df)
+model, vectorizer = load_and_train()
 
-    # User input
-    user_input = st.text_area("Your message:", height=150)
-    if st.button("Predict"):
-        if not user_input.strip():
-            st.warning("Please enter some text to classify.")
-        else:
-            pred = model.predict([user_input])[0]
-            label = "🟢 Ham (Not Spam)" if pred == 0 else "🔴 Spam"
-            st.success(f"Prediction: **{label}**")
+# Streamlit interface
+st.title('Email/SMS Spam Classifier')
 
-    # (Optional) show dataset stats in an expander
-    with st.expander("📊 Dataset overview"):
-        st.write(f"Total messages: {len(df)}")
-        st.write(df['label'].value_counts())
+st.markdown('Enter your message below and click **Predict** to check if it is spam or not.')
+user_input = st.text_area('Message', height=150)
 
-if __name__ == "__main__":
-    main()
+if st.button('Predict'):
+    if not user_input.strip():
+        st.warning('Please enter a message to classify.')
+    else:
+        vect = vectorizer.transform([user_input])
+        prediction = model.predict(vect)[0]
+        label = 'Spam' if prediction == 1 else 'Not Spam'
+        st.success(f'This message is classified as: **{label}**')
+
+# Optional: command to run
+# To run the app: streamlit run this_script.py

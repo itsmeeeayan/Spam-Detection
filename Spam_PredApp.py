@@ -50,6 +50,7 @@ def train_model(df: pd.DataFrame):
     return pipeline
 
 def main():
+    st.add_background()
     # 4) Page config with icon and centered layout
     st.set_page_config(
         page_title="📨 SMS Spam Classifier",
